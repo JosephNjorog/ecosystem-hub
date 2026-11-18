@@ -1,0 +1,42 @@
+// Campus: who belongs to which university, and the student's campus answers. The
+// universities/clubs themselves are Organizations (organizations.prisma). Rules in
+// src/lib/campus.ts, area docs in src/app/(app)/campus/AGENTS.md.
+
+/// Campus answers about the person (not per university) - 1:1 with User, created when they
+/// first save as a student. Area data lives here, not on User (AGENTS.md "Database").
+model CampusProfile {
+  userId                    String    @id
+  user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// TRACK_INTERESTS ids
+  trackInterests            String[]
+  campusCoordinatorInterest Boolean   @default(false)
+  /// when they confirmed being 18+ (students must); kept if they stop being a student
+  adultConfirmedAt          DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  @@map("campus_profiles")
+}
+
+/// A user's affiliation with one university (several per user).
+model UniversityMembership {
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  universityId   String
+  university     Organization  @relation("MembershipUniversity", fields: [universityId], references: [id], onDelete: Restrict)
+  /// student | faculty | staff (UNIVERSITY_KINDS)
+  kind           String
+  /// students only (required for them)
+  fieldOfStudy   String?
+  graduationYear Int?
+  clubId         String?
+  club           Organization? @relation("MembershipClub", fields: [clubId], references: [id], onDelete: SetNull)
+  clubPosition   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@id([userId, universityId])
+  @@index([universityId])
+  @@index([clubId])
+  @@map("university_memberships")
+}

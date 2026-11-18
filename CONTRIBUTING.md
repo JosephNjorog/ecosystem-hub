@@ -44,7 +44,7 @@ Required for the PR title, recommended for the commits on your branch (not enfor
 - **Reuse:** existing models, rules and components are used - no parallel version of something that already exists.
 - **Permissions:** a registry key or per-object rule, `action()` on every write, a guard on every page, an audit entry for every change.
 - **Tried as a user:** as every affected role (signed out, builder, organiser, judge, admin). Every link and button you added or touched works. Empty, error and loading states, mobile, light and dark, keyboard. Every text proofread.
-- **Data:** no N+1 queries, only the fields you need, no personal data you don't need. New personal data needs a privacy-policy note.
+- **Data:** no N+1 queries, only the fields you need, no personal data you don't need.
 - **Docs:** AGENTS.md updated if you added an area, a rule or a convention.
 - **Your diff:** you read it top to bottom yourself.
 - **Agent review:** run the `team1-hub-review` skill (`.agents/skills/`, read by Codex, Cursor, OpenCode, Antigravity and Claude Code) and fix what it finds.
