@@ -54,6 +54,11 @@ model User {
   twoFactors         TwoFactor[]
   passkeys           Passkey[]
 
+  // campus (campus.prisma, organizations.prisma)
+  campusProfile         CampusProfile?
+  universityMemberships UniversityMembership[]
+  organizationsCreated  Organization[]         @relation("OrganizationsCreated")
+
   @@map("users")
 }
 

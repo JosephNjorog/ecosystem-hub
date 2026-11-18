@@ -15,8 +15,11 @@ import { Input } from '@/components/ui/input'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea'
 import { useActionToast } from '@/hooks/use-action-toast'
+import { emptyUniversityEntry, hasUniversityGaps, universityGaps } from '@/lib/campus'
+import type { OrgOptions } from '@/lib/organizations'
 import { BUILDER_ROLES, EMPLOYMENT_ROLES, EVM_ADDRESS, SKILL_SUGGESTIONS, WALLET_ERROR, type ProfileFormValues } from '@/lib/profile'
 import { saveProfile } from '../_lib/actions'
+import { UniversityFields } from './university-fields'
 
 function Prefixed({ prefix, platform, ...props }: React.ComponentProps<typeof Input> & { prefix: string; platform?: SocialPlatform }) {
   return (
@@ -29,16 +32,25 @@ function Prefixed({ prefix, platform, ...props }: React.ComponentProps<typeof In
 
 // `countries` comes from the server: Intl country names differ between Node and browsers (hydration).
 // `onboarding`: the first-visit step - required fields + basics only, the rest comes later.
-export function ProfileForm({ userId, initial, next, countries, onboarding = false }: { userId: string; initial: ProfileFormValues; next: string | null; countries: { code: string; name: string }[]; onboarding?: boolean }) {
+export function ProfileForm({ userId, initial, next, countries, orgs, legacyInstitution = null, onboarding = false }: { userId: string; initial: ProfileFormValues; next: string | null; countries: { code: string; name: string }[]; orgs: OrgOptions; legacyInstitution?: string | null; onboarding?: boolean }) {
   const router = useRouter()
   const [p, setP] = useState(initial)
   const set = <K extends keyof ProfileFormValues>(k: K, v: ProfileFormValues[K]) => setP((x) => ({ ...x, [k]: v }))
   const roles = p.builderRoles as string[]
   const { pending, run } = useActionToast()
   // The required trio (same as hasCompleteBasicProfile). Country and roles are not native inputs, so the browser can't check them.
-  const missing = { name: !p.name.trim(), country: !p.country, roles: roles.length === 0 }
-  const incomplete = missing.name || missing.country || missing.roles
+  const university = roles.includes('university')
+  const gaps = universityGaps(p.universities, p.adultConfirmed)
+  const missing = { name: !p.name.trim(), country: !p.country, roles: roles.length === 0, campus: university && hasUniversityGaps(gaps) }
+  // The first campus control with a gap, in page order.
+  const campusTarget = () => {
+    const i = p.universities.findIndex((_, j) => gaps.university[j] || gaps.country[j] || gaps.fieldOfStudy[j])
+    if (i >= 0) return gaps.university[i] ? `#p-uni-${i}` : gaps.country[i] ? `#p-unicountry-${i}` : `#p-field-${i}`
+    return gaps.none ? '#p-campus button' : '#p-adult'
+  }
+  const incomplete = missing.name || missing.country || missing.roles || missing.campus
   const [showErrors, setShowErrors] = useState(false)
+  const telegram = <Field id="p-tg" label="Telegram" hint={onboarding ? 'How campus coordinators reach you.' : undefined}><Prefixed id="p-tg" prefix="@" platform="telegram" value={p.telegramAccount ?? ''} onChange={(e) => set('telegramAccount', e.target.value)} placeholder="username" /></Field>
   const error = (show: boolean, message: string) => showErrors && show && <p role="alert" className="text-xs text-destructive">{message}</p>
   return (
     <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); run(() => saveProfile(p), onboarding ? 'You’re all set' : 'Profile saved', () => next && router.push(next)) }}>
@@ -59,10 +71,12 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
           <fieldset id="p-roles" className="space-y-3">
             <legend className="text-sm">What roles describe you? <span aria-hidden className="text-destructive">*</span><span className="sr-only">(required, pick at least one)</span></legend>
             <p className="text-sm text-fg-muted">Pick all that fit - business folks, students and the curious are as welcome as developers.</p>
-            <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => set('builderRoles', v as ProfileFormValues['builderRoles'])} />
+            <ChipToggle label="Roles" options={BUILDER_ROLES.map((r) => ({ value: r.id, label: r.name }))} value={roles} onChange={(v) => {
+              set('builderRoles', v as ProfileFormValues['builderRoles'])
+              if (v.includes('university') && p.universities.length === 0) set('universities', [emptyUniversityEntry()]) // one row ready to fill
+            }} />
             {error(missing.roles, 'Pick at least one role')}
             <div className="grid gap-4 sm:grid-cols-2">
-              {roles.includes('university') && <Field id="p-inst" label="Institution name"><Input id="p-inst" value={p.institution ?? ''} onChange={(e) => set('institution', e.target.value)} maxLength={120} className="h-11" /></Field>}
               {(roles.includes('founder') || roles.includes('employee')) && <Field id="p-company" label="Company name"><Input id="p-company" value={p.companyName ?? ''} onChange={(e) => set('companyName', e.target.value)} maxLength={120} className="h-11" /></Field>}
               {roles.includes('employee') && (
                 <Field id="p-erole" label="Role">
@@ -82,11 +96,17 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
         </div>
       </SectionCard>
 
+      {university && (
+        <UniversityFields p={p} set={set} orgs={orgs} legacyInstitution={legacyInstitution} countries={countries} defaultCountry={p.country} gaps={gaps} showErrors={showErrors}>
+          {onboarding && <div className="sm:max-w-sm">{telegram}</div>}
+        </UniversityFields>
+      )}
+
       {!onboarding && <SectionCard title="Socials & wallets">
         <div className="grid gap-6 sm:grid-cols-2">
           <Field id="p-gh" label="GitHub"><Prefixed id="p-gh" prefix="github.com/" platform="github" value={p.githubAccount ?? ''} onChange={(e) => set('githubAccount', e.target.value)} placeholder="username" /></Field>
           <Field id="p-x" label="X"><Prefixed id="p-x" prefix="x.com/" platform="x" value={p.xAccount ?? ''} onChange={(e) => set('xAccount', e.target.value)} placeholder="handle" /></Field>
-          <Field id="p-tg" label="Telegram"><Prefixed id="p-tg" prefix="@" platform="telegram" value={p.telegramAccount ?? ''} onChange={(e) => set('telegramAccount', e.target.value)} placeholder="username" /></Field>
+          {telegram}
           <Field id="p-li" label="LinkedIn"><Input id="p-li" type="url" value={p.linkedinAccount ?? ''} onChange={(e) => set('linkedinAccount', e.target.value)} placeholder="https://www.linkedin.com/in/username" className="h-11" /></Field>
           <Field id="p-other" label="Other socials" hint="Personal site or other links."><ValueListInput id="p-other" value={p.otherSocials as string[]} onChange={(v) => set('otherSocials', v)} placeholder="https://…" max={5} /></Field>
           <Field id="p-wallet" label="Wallets" hint="EVM addresses - the first one is your primary (used for rewards)."><ValueListInput id="p-wallet" type="text" value={p.wallets as string[]} onChange={(v) => set('wallets', v)} placeholder="0x…" max={5} mono validate={(v) => (EVM_ADDRESS.test(v) ? null : WALLET_ERROR)} /></Field>
@@ -115,7 +135,7 @@ export function ProfileForm({ userId, initial, next, countries, onboarding = fal
             e.preventDefault()
             setShowErrors(true)
             // Focus also scrolls there: on the full profile the button sits far below these fields.
-            document.querySelector<HTMLElement>(missing.name ? '#p-name' : missing.country ? '#p-country' : '#p-roles button')?.focus()
+            document.querySelector<HTMLElement>(missing.name ? '#p-name' : missing.country ? '#p-country' : missing.roles ? '#p-roles button' : campusTarget())?.focus()
           }}
         >
           {onboarding ? 'Continue' : 'Save profile'}

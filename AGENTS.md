@@ -75,6 +75,7 @@ prisma/schema/<area>.prisma            the area's models (multi-file schema)
 
 ## Database
 - One Postgres schema (`public`) on purpose. Organisation comes from the multi-file Prisma schema (`prisma/schema/*.prisma`, generator + datasource in `base.prisma`). Revisit per-domain Postgres schemas only with a concrete consumer (read-only analytics role, external service owning tables) - `ALTER TABLE … SET SCHEMA` keeps that cheap later.
+- **`User` stays small:** it holds identity, sign-in and the hub-wide profile (name, country, roles, socials, consents). Data only one area uses goes into that area's own table, 1:1 with the user (`userId String @id`, e.g. `CampusProfile` in `campus.prisma`) or per object (e.g. `UniversityMembership`) - not new `User` columns. Keeps area PRs out of `auth.prisma`, and area data out of `getCurrentUser()` on every request.
 - pg-boss owns its own `pgboss` schema (created by the worker at boot), invisible to Prisma.
 - **Never `prisma db push`** - always `pnpm db:migrate`. The migration history is one linear sequence shared by everyone: if `main` gained a migration while your branch had one, rebase, delete your migration folder, and re-run `pnpm db:migrate --name …` so yours comes last.
 - Railway applies migrations on every web deploy (`preDeployCommand` in `railway.toml`). Write migrations that are safe while the previous version is still serving (add columns nullable/with defaults; drop in a later release).
@@ -120,6 +121,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - **Projects** - `src/app/(app)/projects/AGENTS.md` (roles, draft/sealed versions - also what a hackathon team and submission are)
 - **Referrals & groups** - `src/app/(app)/referrals/AGENTS.md` (`/groups/[slug]`, `/admin/groups`)
 - **Education** - `src/app/(site)/education/AGENTS.md`
+- **Campus** - `src/app/(app)/campus/AGENTS.md` (universities + blockchain clubs, student profile data, `/admin/campus`)
 - **Profile** (`src/app/(app)/profile/`, rules `src/lib/profile.ts`): builders-hub's profile fields (roles, socials with its regexes, wallets, skills, consents), ISO-2 countries (`src/lib/countries.ts`). `hasCompleteBasicProfile` (name + country + role) is required to join a hackathon.
 
 ## Conventions
@@ -128,7 +130,7 @@ Each area keeps its rules in an `AGENTS.md` next to its code (Claude Code loads 
 - Server action results are `{ ok: true, data } | { ok: false, error }` - show `error` with `toast.error`.
 - **Env vars:** a new one goes into `.env.example` and the zod schema in `src/lib/env.ts` (checked at boot, warns only, problems shown to super admins in `/admin`).
 - Copy is English only - no i18n library.
-- Privacy policy: one policy for all team1 sites, linked as `https://go.team1.network/privacy-policy` (source in the team1-network repo). A feature that collects, shows, shares or tracks new personal data needs a policy update there.
+- Privacy policy: one policy for all team1 sites, linked as `https://go.team1.network/privacy-policy` (source in the team1-network repo).
 - Analytics: self-hosted Plausible (`NEXT_PUBLIC_PLAUSIBLE_DOMAIN`), no cookies, no banner.
 
 # Basic Behaviour

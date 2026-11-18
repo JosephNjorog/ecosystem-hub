@@ -63,7 +63,6 @@ Work through all groups. Report only what the diff shows, with `path:line`. Chan
 **F. Product and polish** (read the UI diff like a user would)
 - Every new link and button does something: no `href="#"`, empty handlers, social links without a URL, dead routes.
 - Empty, error and loading states exist. Labels, alt text, keyboard reachability.
-- Personal data newly collected, shown or shared: needs a privacy-policy note (AGENTS.md "Conventions").
 
 **G. Tests** (CONTRIBUTING "What every PR must meet")
 - Changed pure logic (`_lib/rules.ts`, `src/lib/*`) has matching changes in `tests/`. A bug fix has a test that reproduces it.
