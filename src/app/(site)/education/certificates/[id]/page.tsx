@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import { BadgeCheck, Download } from 'lucide-react'
 import { SocialIcon } from '@/components/social-icon'
 import { Button } from '@/components/ui/button'
+import { OPEN_GRAPH } from '@/lib/metadata'
 import { getCurrentUser } from '@/lib/session'
 import { DeleteCertificate } from '../../_components/delete-certificate'
 import { UpdateCertificateName } from '../../_components/update-certificate-name'
@@ -24,7 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const cert = await load(params)
   if (!cert) return {}
   // Carries a person's name: shareable, but kept out of search engines.
-  return { title: `${cert.courseTitle} - Course certificate`, description: `${cert.name} completed ${cert.courseTitle} on the team1 Ecosystem Hub.`, robots: { index: false } }
+  const title = `${cert.courseTitle} - Course certificate`
+  const description = `${cert.name} completed ${cert.courseTitle} on the team1 Ecosystem Hub.`
+  // og:image is the file next to this page (opengraph-image.tsx) - file-based metadata wins over this object.
+  return { title, description, robots: { index: false }, openGraph: { ...OPEN_GRAPH, title, description, url: `/education/certificates/${cert.id}` } }
 }
 
 export default async function CertificatePage({ params }: Props) {
