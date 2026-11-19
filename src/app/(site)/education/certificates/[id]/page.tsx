@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { BadgeCheck, Download } from 'lucide-react'
+import { SocialIcon } from '@/components/social-icon'
 import { Button } from '@/components/ui/button'
 import { getCurrentUser } from '@/lib/session'
 import { DeleteCertificate } from '../../_components/delete-certificate'
@@ -10,7 +11,7 @@ import { UpdateCertificateName } from '../../_components/update-certificate-name
 import { certificateDetails, certificateUrl, formatIssued } from '../../_lib/certificate'
 import { getAcademy } from '../../_lib/content'
 import { getCertificate } from '../../_lib/queries'
-import { courseHref } from '../../_lib/rules'
+import { courseHref, linkedInAddUrl } from '../../_lib/rules'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -85,7 +86,13 @@ export default async function CertificatePage({ params }: Props) {
           </p>
           {(own || user?.isSuperAdmin) && (
             <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-              {own && <Button asChild size="lg"><a href={`/education/certificates/${cert.id}/pdf`}><Download aria-hidden /> Download PDF</a></Button>}
+              {own && (
+                // One grid column = the wider button's width, so both are the same size.
+                <div className="grid gap-2">
+                  <Button asChild size="lg"><a href={`/education/certificates/${cert.id}/pdf`}><Download aria-hidden /> Download PDF</a></Button>
+                  <Button asChild size="lg" variant="outline"><a href={linkedInAddUrl(cert, certificateUrl(cert.id))} target="_blank" rel="noopener noreferrer"><SocialIcon platform="linkedin" /> Add to LinkedIn</a></Button>
+                </div>
+              )}
               {own && profileName && profileName !== cert.name && <UpdateCertificateName id={cert.id} name={profileName} />}
               <DeleteCertificate id={cert.id} own={own} />
             </div>

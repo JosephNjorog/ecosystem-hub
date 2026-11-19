@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import entrepreneur from '@/app/(site)/education/_content/entrepreneur/academy.json'
-import { allLessons, countDirectives, findLesson, formatWait, isCorrect, lessonKey, lessonKind, optionOrder, publicVariants, QUIZ_LOCK_MS, QUIZ_TRIES, quizLock, printableName, progressOf, quizVariant, splitLesson, visitsToSync, type Academy, type Quiz } from '@/app/(site)/education/_lib/rules'
+import { allLessons, countDirectives, findLesson, formatWait, isCorrect, linkedInAddUrl, lessonKey, lessonKind, optionOrder, publicVariants, QUIZ_LOCK_MS, QUIZ_TRIES, quizLock, printableName, progressOf, quizVariant, splitLesson, visitsToSync, type Academy, type Quiz } from '@/app/(site)/education/_lib/rules'
 import { lessonRefSchema, quizAnswerSchema } from '@/app/(site)/education/_lib/schemas'
 
 const DIR = 'src/app/(site)/education/_content'
@@ -180,6 +180,20 @@ test('visitsToSync: known lessons only, clamped to now, never moves an account v
   const existing = new Map([['b', new Date(500)], ['c', new Date(100)]])
   const out = visitsToSync({ a: 200, b: 300, c: 400, ghost: 1, '../x': 1 }, known, existing, 350)
   assert.deepEqual(out, [{ lesson: 'a', visitedAt: new Date(200) }, { lesson: 'c', visitedAt: new Date(350) }])
+})
+
+test('linkedInAddUrl: pre-fills the certification with team1 as issuer, UTC issue month and the verification link', () => {
+  const url = new URL(linkedInAddUrl({ id: 'abc123', courseTitle: 'Foundations of a Web3 Venture & More', issuedAt: new Date('2026-12-31T23:30:00Z') }, 'https://hub.team1.network/education/certificates/abc123'))
+  assert.equal(url.origin + url.pathname, 'https://www.linkedin.com/profile/add')
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    startTask: 'CERTIFICATION_NAME',
+    name: 'Foundations of a Web3 Venture & More',
+    organizationId: '111983994',
+    issueYear: '2026',
+    issueMonth: '12',
+    certUrl: 'https://hub.team1.network/education/certificates/abc123',
+    certId: 'abc123',
+  })
 })
 
 test('printableName: Latin (incl. accents, Vietnamese) and Thai print, other scripts and emoji do not', () => {
