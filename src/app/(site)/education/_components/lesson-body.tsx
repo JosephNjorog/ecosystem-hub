@@ -4,10 +4,13 @@ import { publicVariants, quizLock, splitLesson } from '../_lib/rules'
 import { Flashcards } from './flashcards'
 import { Quiz } from './quiz'
 
-/** Markdown with the lesson directives swapped for their widgets. Only the one quiz/card set reaches the client, not the whole JSON. */
-/** `user`: the signed-in user's passed quiz ids and tries per quiz (null = signed out: questions are shown, answering needs sign-in). */
-/** Answers only reach the browser for questions already passed - everything else is graded by answerQuiz. */
 type UserQuizzes = { passed: Set<string>; attempts: Map<string, { tries: number; lockedUntil: Date | null }> }
+
+/**
+ * Markdown with the lesson directives swapped for their widgets. Only the one quiz/card set reaches the client, not the whole JSON.
+ * Answers only reach the browser for questions already passed - everything else is graded by answerQuiz.
+ * `user`: the signed-in user's passed quiz ids and tries per quiz (null = signed out: questions are shown, answering needs sign-in).
+ */
 export function LessonBody({ body, academy, quizzes, flashcards, user }: { body: string; academy: string; quizzes: Record<string, QuizData>; flashcards: Record<string, Flashcard[]>; user: UserQuizzes | null }) {
   const now = new Date()
   const segments = splitLesson(body)

@@ -43,16 +43,18 @@ export default async function CertificatePage({ params }: Props) {
         <p className="meta flex items-center gap-2 text-success"><BadgeCheck className="size-4" aria-hidden /> Verified certificate</p>
 
         {/* HTML rendition of the PDF - same layout, so the link preview and the download agree. Sizes in cqw = the PDF's
-            points / 8.42, floored in rem so the small print stays readable on phones. Kanit has no italic: the browser slants it. */}
+            points / 8.42, floored in rem so the small print stays readable on phones. Kanit has no italic: the browser slants it.
+            Fixed hex colours (not theme tokens) on purpose: they match the PDF, and the certificate is dark in both themes.
+            Headings use 600, which the site already loads; the PDF embeds Kanit Bold (700) itself. */}
         <section className="@container relative mt-4 overflow-hidden rounded-xl border border-line bg-[#0B0A0F] text-center text-[#d4d4d4] sm:aspect-[297/210]">
           <Image src="/education/certificate-background.jpg" alt="" fill sizes="(min-width: 896px) 896px, 100vw" className="object-cover" priority />
           <div className="relative flex h-full flex-col items-center px-[6cqw] pt-[5.9cqw] pb-[5.4cqw]">
             <Image src="/logos/Team1_MAIN_WHITE.svg" alt="team1" width={110} height={31} className="h-[max(1.5rem,3cqw)] w-auto" />
-            <p className="mt-[3cqw] font-heading text-[max(1.75rem,5.9cqw)] leading-[0.86] font-bold tracking-[-0.02em] text-[#e6e6e6]">CERTIFICATE<br />OF COMPLETION</p>
+            <p className="mt-[3cqw] font-heading text-[max(1.75rem,5.9cqw)] leading-[0.86] font-semibold tracking-[-0.02em] text-[#e6e6e6]">CERTIFICATE<br />OF COMPLETION</p>
             <p className="mt-[3.6cqw] text-[max(0.95rem,2.1cqw)]">THIS CERTIFIES THAT</p>
             <p className={`mt-[1cqw] font-heading leading-[1.1] font-medium break-words text-brand italic ${cert.name.length > 34 ? 'text-[max(1.25rem,2.6cqw)]' : cert.name.length > 24 ? 'text-[max(1.4rem,3.1cqw)]' : 'text-[max(1.5rem,3.6cqw)]'}`}>{cert.name}</p>
             <p className="mt-[1cqw] text-[max(0.95rem,2.1cqw)]">HAS SUCCESSFULLY COMPLETED THE COURSE</p>
-            <p className={`mt-[1.7cqw] max-w-[45cqw] font-heading leading-[0.86] font-bold tracking-[-0.02em] text-[#e6e6e6] uppercase max-sm:max-w-none ${cert.courseTitle.length > 32 ? 'text-[max(1.25rem,3.1cqw)]' : 'text-[max(1.5rem,4cqw)]'}`}>{cert.courseTitle}</p>
+            <p className={`mt-[1.7cqw] max-w-[45cqw] font-heading leading-[0.86] font-semibold tracking-[-0.02em] text-[#e6e6e6] uppercase max-sm:max-w-none ${cert.courseTitle.length > 32 ? 'text-[max(1.25rem,3.1cqw)]' : 'text-[max(1.5rem,4cqw)]'}`}>{cert.courseTitle}</p>
             {details && (
               <div className="text-[max(0.7rem,1.13cqw)] uppercase">
                 <p className="mt-[2.6cqw]">{details.place}</p>
@@ -63,7 +65,7 @@ export default async function CertificatePage({ params }: Props) {
             <dl className="mt-auto grid w-full gap-4 pt-8 text-left sm:w-[63cqw] sm:grid-cols-3 sm:gap-0 sm:self-start sm:ml-[14.9cqw]">
               {([['Issued', issued.toUpperCase()], ['Issued by', 'TEAM1 ECOSYSTEM HUB'], ['Certificate ID', cert.id]] as const).map(([k, v]) => (
                 <div key={k}>
-                  <dt className="font-heading text-[max(0.95rem,1.66cqw)] font-bold text-[#a3a3a3]">{k.toUpperCase()}</dt>
+                  <dt className="font-heading text-[max(0.95rem,1.66cqw)] font-semibold text-[#a3a3a3]">{k.toUpperCase()}</dt>
                   <dd className="mt-[0.7cqw] break-all text-[max(0.7rem,1.13cqw)] text-[#8c8c8c]">{v}</dd>
                 </div>
               ))}
