@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowUpRight, BookOpen, CalendarDays, Coins, FolderGit2, GraduationCap, Megaphone, Trophy, Users, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, Award, BookOpen, CalendarDays, Coins, FolderGit2, GraduationCap, Megaphone, Trophy, Users, type LucideIcon } from 'lucide-react'
 import { EventCover } from '@/components/event-cover'
 import { SectionCard } from '@/components/section-card'
 import { StatusPill } from '@/components/status-pill'
@@ -8,6 +8,7 @@ import { PendingInvites } from '@/app/(app)/projects/_components/pending-invites
 import { ProjectGrid } from '@/app/(app)/projects/_components/project-card'
 import { listMyInvites } from '@/app/(app)/projects/_lib/queries'
 import { getHackathonRoles, listJudgeHackathons, listManagedHackathons } from '@/app/(site)/events/_lib/hackathons/queries'
+import { listMyCertificates } from '@/app/(site)/education/_lib/queries'
 import { LinkCard } from '@/components/link-card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -30,7 +31,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const user = await requireUser()
   const welcome = (await searchParams).welcome === '1'
   const roles = await getHackathonRoles(user.id)
-  const [u, allProjects, hackathons, onboardings, { groups }, invites, judging, organising] = await Promise.all([
+  const [u, allProjects, hackathons, onboardings, { groups }, invites, judging, organising, certificates] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { name: true, country: true, builderRoles: true, image: true } }),
     prisma.project.findMany({
       where: { archivedAt: null, members: { some: { userId: user.id } } },
@@ -62,6 +63,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     listMyInvites(user.id),
     roles.judge ? listJudgeHackathons(user.id) : [],
     roles.organizer ? listManagedHackathons(user, false) : [],
+    listMyCertificates(user.id),
   ])
   // ponytail: sorts all of the user's projects in memory - fine for a handful, paginate if builders get dozens
   const projects = allProjects.filter((p) => p.currentVersion).sort((a, b) => byActivity(a.currentVersion!, b.currentVersion!)).slice(0, 6)
@@ -181,6 +183,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             {projects.length > 0 && <Button asChild size="sm" variant="ghost"><Link href="/projects">All projects</Link></Button>}
           </div>
           <div className="mt-5"><ProjectGrid projects={projects} now={now} /></div>
+        </section>
+      )}
+
+      {certificates.length > 0 && (
+        <section aria-labelledby="your-certificates">
+          <h2 id="your-certificates" className="text-xl">Your certificates</h2>
+          <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {certificates.map((c) => (
+              <li key={c.id}><LinkCard href={`/education/certificates/${c.id}`} image={null} icon={Award} title={c.courseTitle} meta={`Issued ${formatShortDate(c.issuedAt, 'UTC', now)}`} /></li>
+            ))}
+          </ul>
         </section>
       )}
 

@@ -1,12 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowRight, ArrowUpRight, Layers, ListChecks, PlayCircle } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Award, Layers, ListChecks, PlayCircle } from 'lucide-react'
 import { BackLink } from '@/components/back-link'
+import { StatusPill } from '@/components/status-pill'
 import { Button } from '@/components/ui/button'
 import { canonical } from '@/lib/metadata'
-import { getAcademy, lessonCounts, sumCounts } from '../_lib/content'
-import { academyHref, allLessons, courseHref } from '../_lib/rules'
+import { getCurrentUser } from '@/lib/session'
+import { SyncLocalProgress } from '../_components/sync-local-progress'
+import { getAcademy, lessonCounts, progressLessons, sumCounts } from '../_lib/content'
+import { getCertificateIds, getProgress } from '../_lib/queries'
+import { academyHref, courseHref, progressOf } from '../_lib/rules'
 
 type Props = { params: Promise<{ academy: string }> }
 
@@ -26,12 +30,16 @@ export default async function AcademyPage({ params }: Props) {
   const academy = getAcademy((await params).academy)
   if (!academy) notFound()
   const counts = lessonCounts(academy)
-  const lessons = allLessons(academy)
+  const lessons = progressLessons(academy)
+  const user = await getCurrentUser()
+  const [progress, certIds] = user ? await Promise.all([getProgress(user.id, academy.slug), getCertificateIds(user.id, academy.slug)]) : [null, null]
+  const overall = progress && progressOf(progress, lessons)
   const total = sumCounts(counts, lessons.map((l) => l.href))
   const modules = academy.courses.reduce((n, c) => n + c.modules.length, 0)
 
   return (
     <>
+      {user && <SyncLocalProgress academy={academy.slug} />}
       <section className="relative overflow-hidden border-b border-line">
         <div aria-hidden className="pointer-events-none absolute -top-40 right-[-10%] h-[36rem] w-[36rem] rounded-full bg-brand/15 blur-[120px]" />
         <div aria-hidden className="dot-grid pointer-events-none absolute inset-0 opacity-30 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]" />
@@ -46,7 +54,7 @@ export default async function AcademyPage({ params }: Props) {
               <p className="animate-fade-in-up mt-5 text-xl text-fg-heading [animation-delay:160ms] sm:text-2xl">{academy.tagline}</p>
               <p className="animate-fade-in-up mt-4 max-w-[56ch] text-lg text-fg-body [animation-delay:200ms]">{academy.description}</p>
               <div className="animate-fade-in-up mt-10 flex flex-col gap-3 [animation-delay:280ms] sm:flex-row">
-                <Button asChild size="lg"><Link href={lessons[0].href}>Start the first course <ArrowRight aria-hidden /></Link></Button>
+                <Button asChild size="lg"><Link href={overall?.resume ?? lessons[0].href}>{overall?.started ? 'Continue where you left off' : 'Start the first course'} <ArrowRight aria-hidden /></Link></Button>
                 <Button asChild size="lg" variant="outline"><a href="#curriculum">See the curriculum</a></Button>
               </div>
             </div>
@@ -70,7 +78,9 @@ export default async function AcademyPage({ params }: Props) {
         <ol className="relative space-y-5">
           <span aria-hidden className="absolute top-14 bottom-14 left-[27px] hidden w-px bg-brand/40 sm:block" />
           {academy.courses.map((c, i) => {
-            const t = sumCounts(counts, lessons.filter((l) => l.course === c).map((l) => l.href))
+            const cLessons = lessons.filter((l) => l.course === c)
+            const t = sumCounts(counts, cLessons.map((l) => l.href))
+            const p = progress && progressOf(progress, cLessons)
             return (
               <li key={c.slug} className="relative sm:pl-20">
                 <span aria-hidden className="absolute top-7 left-0 hidden size-14 place-items-center rounded-full border border-brand bg-surface-0 font-heading text-lg font-medium text-fg-heading tabular-nums sm:grid">
@@ -78,7 +88,10 @@ export default async function AcademyPage({ params }: Props) {
                 </span>
                 <Link href={courseHref(academy, c)} className="group grid gap-6 rounded-xl border border-line bg-surface-2 p-6 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow sm:p-8 lg:grid-cols-[1fr_minmax(0,22rem)] lg:gap-10">
                   <div>
-                    <p className="meta"><span className="sm:hidden">Course {i + 1} · </span>{c.modules.length} modules · {t.lessons} lessons · {t.videos} videos</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <p className="meta"><span className="sm:hidden">Course {i + 1} · </span>{c.modules.length} modules · {t.lessons} lessons · {t.videos} videos</p>
+                      {certIds?.has(c.slug) ? <StatusPill tone="success"><Award aria-hidden /> Certificate earned</StatusPill> : p?.started && <StatusPill tone="brand">{p.done} / {p.total} done</StatusPill>}
+                    </div>
                     <h3 className="mt-3 flex items-start justify-between gap-4 text-2xl sm:text-3xl">
                       {c.title}
                       <ArrowUpRight className="arrow-nudge mt-1 size-6 shrink-0 text-brand" aria-hidden />

@@ -25,14 +25,14 @@ export function splitLesson(body: string): Segment[] {
 }
 
 /** What a lesson holds - drives its icon. Counted from the body's directives. */
-export type LessonCounts = { videos: number; quizzes: number; flashcards: number }
+export type LessonCounts = { videos: number; quizzes: number; flashcards: number; quizIds: string[] }
 export type LessonKind = 'quiz' | 'flashcards' | 'video' | 'reading'
 
 export function countDirectives(body: string): LessonCounts {
-  const n = { videos: 0, quizzes: 0, flashcards: 0 }
+  const n: LessonCounts = { videos: 0, quizzes: 0, flashcards: 0, quizIds: [] }
   for (const s of splitLesson(body)) {
     if (s.kind === 'youtube') n.videos++
-    if (s.kind === 'quiz') n.quizzes++
+    if (s.kind === 'quiz') { n.quizzes++; n.quizIds.push(s.id) }
     if (s.kind === 'flashcards') n.flashcards++
   }
   return n
@@ -81,4 +81,76 @@ export function optionOrder(n: number, seed: string): number[] {
     ;[order[i], order[j]] = [order[j], order[i]]
   }
   return order
+}
+
+// Progress (signed-in users). A lesson is stored as `lessonKey` = "<course>/<module>/<lesson>" per academy.
+export const lessonKey = (l: { course: { slug: string }; module: { slug: string }; lesson: { slug: string } }) => `${l.course.slug}/${l.module.slug}/${l.lesson.slug}`
+
+/** `visited`: lesson keys opened; `passed`: quiz ids answered correctly; `last`: most recently opened lesson key. */
+export type Progress = { visited: Set<string>; passed: Set<string>; last: string | null }
+export type ProgressLesson = { key: string; href: string; quizIds: string[] }
+
+/** Done = opened, and every quiz question in it answered correctly. */
+export const lessonDone = (p: Progress, l: ProgressLesson) => p.visited.has(l.key) && l.quizIds.every((q) => p.passed.has(q))
+
+/**
+ * Progress over a list of lessons in reading order (a course, or a whole academy).
+ * `resume`: the first unfinished lesson after the last one opened - "continue where you left off";
+ * wraps to the first gap when everything after it is done. null = all done.
+ */
+export function progressOf(p: Progress, lessons: ProgressLesson[]) {
+  const done = lessons.filter((l) => lessonDone(p, l)).length
+  const lastAt = lessons.findIndex((l) => l.key === p.last)
+  const open = (l: ProgressLesson) => !lessonDone(p, l)
+  const resume = lessons.slice(lastAt + 1).find(open) ?? lessons.find(open) ?? null
+  return { done, total: lessons.length, complete: done === lessons.length, started: lessons.some((l) => p.visited.has(l.key)), resume: resume?.href ?? null }
+}
+
+/**
+ * Device visits (signed out, lessonKey → ms) worth writing after sign-in: known lessons only, times clamped
+ * to `now`, and only where the device saw the lesson later than the account did (keeps the newest resume point).
+ */
+export function visitsToSync(local: Record<string, number>, known: Set<string>, existing: Map<string, Date>, now: number) {
+  return Object.entries(local)
+    .filter(([key]) => known.has(key))
+    .map(([lesson, at]) => ({ lesson, visitedAt: new Date(Math.min(at, now)) }))
+    .filter((v) => {
+      const prev = existing.get(v.lesson)
+      return !prev || prev < v.visitedAt
+    })
+}
+
+/**
+ * Whether the certificate font (Kanit: Latin incl. Vietnamese, Thai) can print this name. Other scripts
+ * (Cyrillic, Greek, CJK, Arabic, emoji) would render blank on a certificate that can't be edited.
+ * ponytail: allow-list by script; add a Noto fallback font to the PDF to widen it.
+ */
+export const printableName = (name: string) => /^[\p{Script=Latin}\p{Script=Thai}\p{M}\p{Zs}0-9.,'’‘\-()&]+$/u.test(name)
+
+// Quiz tries (signed-in only; graded on the server - the browser never gets the answers of an unpassed question).
+// Same rule as builders-hub: 3 wrong answers lock the question for 24 hours, then the count starts over.
+export const QUIZ_TRIES = 3
+export const QUIZ_LOCK_MS = 24 * 60 * 60 * 1000
+
+/** What the browser gets of a quiz: each variant's question and options, no answers, hints or explanations. */
+export type PublicQuestion = { question: string; options: string[]; multi: boolean }
+export const publicVariants = (quiz: Quiz): PublicQuestion[] =>
+  [quiz, ...quiz.alternates].map((v) => ({ question: v.question, options: v.options, multi: v.correctAnswers.length > 1 }))
+
+/** `waitMs` > 0: locked for that long (as of `now`, computed on the server); else how many tries are left. */
+export type QuizLock = { triesLeft: number; waitMs: number }
+export function quizLock(row: { tries: number; lockedUntil: Date | null } | null | undefined, now: Date): QuizLock {
+  if (row?.lockedUntil && row.lockedUntil > now) return { triesLeft: 0, waitMs: row.lockedUntil.getTime() - now.getTime() }
+  return { triesLeft: row?.lockedUntil ? QUIZ_TRIES : Math.max(0, QUIZ_TRIES - (row?.tries ?? 0)), waitMs: 0 }
+}
+
+/** answerQuiz's answer. Correct → the answer + explanation. Wrong → hint and the lock state (`lock` null = practice on a
+ *  passed question, no limit); `hint` null = locked, the answer was not graded. */
+export type QuizResult = { correct: true; correctAnswers: number[]; explanation: string } | { correct: false; hint: string | null; lock: QuizLock | null }
+
+/** "23 h 5 min" / "12 min" until a lock ends (rounded up to the minute). */
+export function formatWait(ms: number) {
+  const min = Math.max(1, Math.ceil(ms / 60_000))
+  const h = Math.floor(min / 60)
+  return h ? `${h} h ${min % 60} min` : `${min} min`
 }

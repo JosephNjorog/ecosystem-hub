@@ -1,0 +1,59 @@
+// Education progress + certificates. Course content lives in git
+// (src/app/(site)/education/_content), so rows reference it by slug.
+
+/// A lesson the user opened while signed in. `visitedAt` moves on every visit (resume point).
+model LessonVisit {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academy   String
+  /// "<course>/<module>/<lesson>"
+  lesson    String
+  visitedAt DateTime @default(now())
+
+  @@id([userId, academy, lesson])
+  @@index([userId, visitedAt])
+  @@map("education_lesson_visits")
+}
+
+/// A quiz question answered correctly (any of its variants), checked on the server.
+model QuizPass {
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academy  String
+  quizId   String
+  passedAt DateTime @default(now())
+
+  @@id([userId, academy, quizId])
+  @@map("education_quiz_passes")
+}
+
+/// Tries at a quiz question not passed yet. The 3rd wrong answer locks it for 24h, then it starts over
+/// (QUIZ_TRIES / QUIZ_LOCK_MS in _lib/rules.ts, enforced in answerQuiz).
+model QuizAttempt {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academy     String
+  quizId      String
+  /// Tries taken since the last lock ended (a correct one passes the quiz, after which this no longer matters).
+  tries       Int       @default(0)
+  lockedUntil DateTime?
+
+  @@id([userId, academy, quizId])
+  @@map("education_quiz_attempts")
+}
+
+/// Issued once per user + course. Public by id (/education/certificates/[id]) - that is the verification.
+model Certificate {
+  id          String   @id @default(cuid(2))
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  academy     String
+  course      String
+  /// Name and course title as printed at issue time - later profile/content changes don't alter it.
+  name        String
+  courseTitle String
+  issuedAt    DateTime @default(now())
+
+  @@unique([userId, academy, course])
+  @@map("education_certificates")
+}

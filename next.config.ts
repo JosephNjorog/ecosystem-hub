@@ -29,8 +29,8 @@ const nextConfig: NextConfig = {
   // Image uploads go through a server action (FormData); covers are up to 2 MB.
   experimental: { serverActions: { bodySizeLimit: '3mb' } },
   serverExternalPackages: ['@prisma/client', 'pg-boss'],
-  // Lesson Markdown is read from disk at request time (src/app/(site)/education/_lib/content.ts).
-  outputFileTracingIncludes: { '/education/**': ['src/app/(site)/education/_content/**/*.md'] },
+  // Lesson Markdown (_lib/content.ts) and certificate fonts/logo (_lib/certificate.tsx) are read from disk at request time.
+  outputFileTracingIncludes: { '/education/**': ['src/app/(site)/education/_content/**/*.md', 'src/app/(site)/education/_certificate/*'] },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
