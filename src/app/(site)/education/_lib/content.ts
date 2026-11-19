@@ -5,7 +5,7 @@ import path from 'node:path'
 import entrepreneur from '../_content/entrepreneur/academy.json'
 import entrepreneurFlashcards from '../_content/entrepreneur/flashcards.json'
 import entrepreneurQuizzes from '../_content/entrepreneur/quizzes.json'
-import { allLessons, countDirectives, type Academy, type Flashcard, type LessonCounts, type Quiz } from './rules'
+import { allLessons, countDirectives, lessonKey, type Academy, type Flashcard, type LessonCounts, type Quiz } from './rules'
 
 // Content lives in git (`_content/<academy>/`), edited by PR. Structure + quizzes are bundled JSON;
 // lesson bodies are read from disk (next.config.ts traces `_content` into the standalone build).
@@ -40,4 +40,10 @@ export function lessonCounts(academy: Academy): Map<string, LessonCounts> {
 /** Totals for a set of lesson hrefs (a course, or a whole academy). */
 export function sumCounts(counts: Map<string, LessonCounts>, hrefs: string[]) {
   return hrefs.reduce((t, h) => { const c = counts.get(h)!; return { lessons: t.lessons + 1, videos: t.videos + c.videos, quizzes: t.quizzes + c.quizzes } }, { lessons: 0, videos: 0, quizzes: 0 })
+}
+
+/** Every lesson in reading order with what progress needs: its key and quiz ids. */
+export function progressLessons(academy: Academy) {
+  const counts = lessonCounts(academy)
+  return allLessons(academy).map((l) => ({ ...l, key: lessonKey(l), quizIds: counts.get(l.href)!.quizIds }))
 }

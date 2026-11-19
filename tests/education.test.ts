@@ -2,7 +2,8 @@ import { test } from 'vitest'
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import entrepreneur from '@/app/(site)/education/_content/entrepreneur/academy.json'
-import { allLessons, countDirectives, findLesson, isCorrect, lessonKind, optionOrder, quizVariant, splitLesson, type Academy, type Quiz } from '@/app/(site)/education/_lib/rules'
+import { allLessons, countDirectives, findLesson, formatWait, isCorrect, lessonKey, lessonKind, optionOrder, publicVariants, QUIZ_LOCK_MS, QUIZ_TRIES, quizLock, printableName, progressOf, quizVariant, splitLesson, visitsToSync, type Academy, type Quiz } from '@/app/(site)/education/_lib/rules'
+import { lessonRefSchema, quizAnswerSchema } from '@/app/(site)/education/_lib/schemas'
 
 const DIR = 'src/app/(site)/education/_content'
 const json = (file: string) => JSON.parse(readFileSync(file, 'utf8'))
@@ -66,29 +67,146 @@ test('entrepreneur academy: all 4 builders-hub courses and 113 lessons', () => {
   assert.equal(allLessons(entrepreneur).length, 113)
 })
 
-test('content: per academy, every lesson file exists, every directive resolves, no raw HTML', () => {
-  for (const { slug, academy, quizzes, flashcards } of ACADEMIES) {
+// Content integrity. builders-hub shipped quizzes detached from their lessons, deleted quizzes still referenced,
+// and quizzes required for a certificate that nobody could answer - these tests fail the PR (pnpm test in CI) instead.
+const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const unique = (items: string[], what: string) => assert.equal(new Set(items).size, items.length, `duplicate ${what}: ${items.filter((x, i) => items.indexOf(x) !== i)}`)
+const mdFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? mdFiles(`${dir}/${e.name}`) : e.name.endsWith('.md') ? [`${dir}/${e.name}`] : []))
+const lessonFile = (href: string) => `${DIR}/${href.split('/').slice(2).join('/')}.md`
+
+test('content: structure - unique url-safe slugs, no empty course or module, no lesson file outside academy.json', () => {
+  for (const { slug, academy } of ACADEMIES) {
     assert.equal(academy.slug, slug, 'academy.json slug = folder name')
+    unique(academy.courses.map((c) => c.slug), `course in ${slug}`)
+    for (const c of academy.courses) {
+      assert.match(c.slug, SLUG, `course ${c.slug}`)
+      assert.ok(c.modules.length > 0, `${c.slug}: no modules`)
+      unique(c.modules.map((m) => m.slug), `module in ${c.slug}`)
+      for (const m of c.modules) {
+        assert.match(m.slug, SLUG, `module ${c.slug}/${m.slug}`)
+        assert.ok(m.lessons.length > 0, `${c.slug}/${m.slug}: no lessons (an empty course would be "complete" at once)`)
+        unique(m.lessons.map((l) => l.slug), `lesson in ${c.slug}/${m.slug}`)
+        for (const l of m.lessons) assert.match(l.slug, SLUG, `lesson ${c.slug}/${m.slug}/${l.slug}`)
+      }
+    }
+    const listed = new Set(allLessons(academy).map((l) => lessonFile(l.href)))
+    for (const f of mdFiles(`${DIR}/${slug}`)) assert.ok(listed.has(f), `${f} is not in academy.json - unreachable`)
+  }
+})
+
+test('content: every lesson file exists, every directive resolves, every quiz is used, no raw HTML', () => {
+  for (const { slug, academy, quizzes, flashcards } of ACADEMIES) {
     const usedQuizzes = new Set<string>()
     for (const { href } of allLessons(academy)) {
-      const file = `${DIR}/${href.split('/').slice(2).join('/')}.md`
+      const file = lessonFile(href)
       assert.ok(existsSync(file), file)
       const body = readFileSync(file, 'utf8')
       assert.doesNotMatch(body, /<[A-Za-z/][^>]*>/, file)
       for (const s of splitLesson(body)) {
-        if (s.kind === 'quiz') { assert.ok(s.id in quizzes, `${file}: quiz ${s.id}`); usedQuizzes.add(s.id) }
-        if (s.kind === 'flashcards') assert.ok(s.id in flashcards, `${file}: flashcards ${s.id}`)
+        // Object.hasOwn, not `in`: "constructor" is `in` every object.
+        if (s.kind === 'quiz') { assert.ok(Object.hasOwn(quizzes, s.id), `${file}: quiz ${s.id} does not exist`); usedQuizzes.add(s.id) }
+        if (s.kind === 'flashcards') assert.ok(Object.hasOwn(flashcards, s.id), `${file}: flashcards ${s.id} do not exist`)
       }
     }
-    assert.equal(usedQuizzes.size, Object.keys(quizzes).length, `${slug}: orphaned quizzes`)
+    const orphans = Object.keys(quizzes).filter((id) => !usedQuizzes.has(id))
+    assert.deepEqual(orphans, [], `${slug}: quizzes in no lesson`)
   }
 })
 
-test('content: every quiz answer points at an existing option', () => {
-  for (const [id, quiz] of ACADEMIES.flatMap((a) => Object.entries(a.quizzes))) {
-    for (const v of [quiz, ...quiz.alternates]) {
-      assert.ok(v.correctAnswers.length > 0, id)
-      for (const a of v.correctAnswers) assert.ok(a >= 0 && a < v.options.length, `quiz ${id}: answer ${a}`)
+test('content: every quiz variant is answerable through the UI and the server', () => {
+  for (const { slug, quizzes } of ACADEMIES) {
+    for (const [id, quiz] of Object.entries(quizzes)) {
+      const variants = [quiz, ...quiz.alternates]
+      variants.forEach((v, attempt) => {
+        const at = `${slug} quiz ${id} variant ${attempt}`
+        assert.ok(v.question.trim() && v.explanation.trim(), `${at}: question and explanation`)
+        assert.ok(v.options.length >= 2 && v.options.every((o) => o.trim()), `${at}: at least 2 non-empty options`)
+        unique(v.options, `option in ${at}`)
+        assert.ok(v.correctAnswers.length > 0, `${at}: no correct answer`)
+        // The UI selects each option at most once - a duplicated index could never be matched.
+        unique(v.correctAnswers.map(String), `correct answer in ${at}`)
+        for (const a of v.correctAnswers) assert.ok(Number.isInteger(a) && a >= 0 && a < v.options.length, `${at}: answer ${a} is not an option`)
+        // What the browser sends for the right answer must pass the server's schema and grading.
+        const sent = { academy: slug, quizId: id, attempt, selected: v.correctAnswers }
+        assert.ok(quizAnswerSchema.safeParse(sent).success, `${at}: rejected by quizAnswerSchema`)
+        assert.ok(isCorrect(sent.selected, quizVariant(quiz, attempt).correctAnswers), `${at}: not graded correct`)
+      })
     }
   }
+})
+
+test('content: every course can be completed - the path to a certificate is never blocked', () => {
+  for (const { slug, academy, quizzes } of ACADEMIES) {
+    for (const course of academy.courses) {
+      const visited = new Set<string>()
+      const passed = new Set<string>()
+      const lessons = allLessons(academy).filter((l) => l.course === course).map((l) => {
+        const ref = { academy: slug, course: l.course.slug, module: l.module.slug, lesson: l.lesson.slug }
+        // Opening the lesson: the visit action's schema and lookup must resolve it to this very lesson.
+        assert.ok(lessonRefSchema.safeParse(ref).success, `${l.href}: rejected by lessonRefSchema`)
+        assert.equal(findLesson(academy, ref.course, ref.module, ref.lesson)?.href, l.href, `${l.href}: not reachable`)
+        visited.add(lessonKey(l))
+        const quizIds = countDirectives(readFileSync(lessonFile(l.href), 'utf8')).quizIds
+        for (const q of quizIds) if (isCorrect(quizzes[q].correctAnswers, quizVariant(quizzes[q], 0).correctAnswers)) passed.add(q)
+        return { key: lessonKey(l), href: l.href, quizIds }
+      })
+      const p = progressOf({ visited, passed, last: null }, lessons)
+      assert.ok(p.total > 0 && p.complete, `${slug}/${course.slug}: ${p.done} of ${p.total} completable`)
+    }
+  }
+})
+
+test('countDirectives collects quiz ids in order', () => {
+  assert.deepEqual(countDirectives('::quiz[3]\ntext\n::quiz[1]').quizIds, ['3', '1'])
+})
+
+test('progressOf: done needs the visit and every quiz; resume continues after the last lesson opened', () => {
+  const L = (key: string, quizIds: string[] = []) => ({ key, href: `/${key}`, quizIds })
+  const lessons = [L('a'), L('b', ['q1']), L('c'), L('d')]
+  const p = (visited: string[], passed: string[], last: string | null) => ({ visited: new Set(visited), passed: new Set(passed), last })
+
+  assert.deepEqual(progressOf(p([], [], null), lessons), { done: 0, total: 4, complete: false, started: false, resume: '/a' })
+  // b visited but its quiz not passed: not done. Last opened c → continue at d, not back at b.
+  assert.deepEqual(progressOf(p(['a', 'b', 'c'], [], 'c'), lessons), { done: 2, total: 4, complete: false, started: true, resume: '/d' })
+  // Everything after the last lesson done → wrap to the first gap.
+  assert.equal(progressOf(p(['a', 'b', 'c', 'd'], [], 'd'), lessons).resume, '/b')
+  // Last opened lesson from another course (not in the list) → first gap.
+  assert.equal(progressOf(p(['a'], [], 'elsewhere'), lessons).resume, '/b')
+  assert.deepEqual(progressOf(p(['a', 'b', 'c', 'd'], ['q1'], 'b'), lessons), { done: 4, total: 4, complete: true, started: true, resume: null })
+})
+
+test('visitsToSync: known lessons only, clamped to now, never moves an account visit backwards', () => {
+  const known = new Set(['a', 'b', 'c'])
+  const existing = new Map([['b', new Date(500)], ['c', new Date(100)]])
+  const out = visitsToSync({ a: 200, b: 300, c: 400, ghost: 1, '../x': 1 }, known, existing, 350)
+  assert.deepEqual(out, [{ lesson: 'a', visitedAt: new Date(200) }, { lesson: 'c', visitedAt: new Date(350) }])
+})
+
+test('printableName: Latin (incl. accents, Vietnamese) and Thai print, other scripts and emoji do not', () => {
+  for (const n of ['Ana-María O’Brien', 'Nguyễn Văn Anh', 'Zoë Ç. Şahin', 'สมชาย ใจดี', 'J. R. R. Tolkien (Jr.)']) assert.ok(printableName(n), n)
+  for (const n of ['Иван Петров', '王小明', 'محمد', 'Ana 🚀', 'Νίκος']) assert.ok(!printableName(n), n)
+})
+
+test('quizLock: 3 tries, locked until the time passes, then a fresh 3', () => {
+  const now = new Date(1_000_000)
+  assert.deepEqual(quizLock(null, now), { triesLeft: QUIZ_TRIES, waitMs: 0 })
+  assert.deepEqual(quizLock({ tries: 2, lockedUntil: null }, now), { triesLeft: 1, waitMs: 0 })
+  const until = new Date(now.getTime() + QUIZ_LOCK_MS)
+  assert.deepEqual(quizLock({ tries: 0, lockedUntil: until }, now), { triesLeft: 0, waitMs: QUIZ_LOCK_MS })
+  assert.deepEqual(quizLock({ tries: 0, lockedUntil: until }, until), { triesLeft: QUIZ_TRIES, waitMs: 0 }) // lock over
+  assert.equal(QUIZ_LOCK_MS, 24 * 60 * 60 * 1000)
+})
+
+test('publicVariants: what the browser gets carries no answers, hints or explanations', () => {
+  for (const quiz of ACADEMIES.flatMap((a) => Object.values(a.quizzes))) {
+    const out = publicVariants(quiz)
+    assert.equal(out.length, 1 + quiz.alternates.length)
+    for (const v of out) assert.deepEqual(Object.keys(v).sort(), ['multi', 'options', 'question'])
+  }
+})
+
+test('formatWait rounds up to the minute', () => {
+  assert.equal(formatWait(QUIZ_LOCK_MS), '24 h 0 min')
+  assert.equal(formatWait(61 * 60_000 + 1), '1 h 2 min')
+  assert.equal(formatWait(1), '1 min')
 })

@@ -9,7 +9,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { OPEN_GRAPH } from '@/lib/metadata'
 import './globals.css'
 
-const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600'], variable: '--font-kanit' })
+const kanit = Kanit({ subsets: ['latin', 'latin-ext'], weight: ['300', '400', '500', '600', '700'], variable: '--font-kanit' })
 // Metadata layer only (dates, counts, numbering) - Kanit stays the brand face.
 // Self-hosted (variable latin woff2, wght 400–500): next/font/google failed for it in the Railway build.
 const mono = localFont({ src: './_fonts/jetbrains-mono-latin.woff2', weight: '400 500', variable: '--font-jetbrains' })
