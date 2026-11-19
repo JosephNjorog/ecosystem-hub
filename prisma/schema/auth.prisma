@@ -58,6 +58,11 @@ model User {
   quizAttempts       QuizAttempt[]
   certificates       Certificate[]
 
+  // campus (campus.prisma, organizations.prisma)
+  campusProfile         CampusProfile?
+  universityMemberships UniversityMembership[]
+  organizationsCreated  Organization[]         @relation("OrganizationsCreated")
+
   @@map("users")
 }
 

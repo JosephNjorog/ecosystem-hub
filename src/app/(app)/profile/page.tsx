@@ -1,4 +1,4 @@
-import type { User } from '@prisma/client'
+import type { CampusProfile, UniversityMembership, User } from '@prisma/client'
 import type { Metadata } from 'next'
 import { ExternalLink } from 'lucide-react'
 import Link from 'next/link'
@@ -10,7 +10,9 @@ import { prisma } from '@/lib/db'
 import { TIER_LABELS } from '@/lib/groups'
 import { reportRejectedNext, requireUser } from '@/lib/guards'
 import { BUILDER_HUB_URL } from '@/lib/builder-hub'
+import { emptyUniversityEntry, type UniversityEntry, type UniversityKind } from '@/lib/campus'
 import { getPortalProfile } from '@/lib/member-portal'
+import { getOrgOptions, type OrgOptions } from '@/lib/organizations'
 import { hasCompleteBasicProfile, type ProfileFormValues } from '@/lib/profile'
 import { safeNext } from '@/lib/safe-next'
 import { getUserGroups } from '@/lib/user-groups'
@@ -18,11 +20,22 @@ import { ProfileForm } from './_components/profile-form'
 
 export const metadata: Metadata = { title: 'Your profile', robots: { index: false } }
 
-function formValues(u: User): ProfileFormValues {
+function formValues(u: User & { universityMemberships: UniversityMembership[]; campusProfile: CampusProfile | null }, orgs: OrgOptions): ProfileFormValues {
+  // A club merged under another university can't be picked here any more - start without it.
+  const clubOf = new Map(orgs.clubs.map((c) => [c.id, c.parentId]))
+  const universities: UniversityEntry[] = u.universityMemberships.map((m) => {
+    const clubId = m.clubId && clubOf.get(m.clubId) === m.universityId ? m.clubId : null
+    return { universityId: m.universityId, catalogUniversity: null, newUniversity: null, kind: m.kind as UniversityKind, fieldOfStudy: m.fieldOfStudy, graduationYear: m.graduationYear, clubId, newClubName: null, clubPosition: clubId ? m.clubPosition : null }
+  })
+  // One row ready to fill (like toggling the role on). The old free-text institution is only a hint
+  // there (legacyInstitution) - prefilling it as a new university would add duplicates of catalog ones.
+  if (!universities.length && u.builderRoles.includes('university')) universities.push(emptyUniversityEntry())
   return {
-    name: u.name, bio: u.bio, country: u.country, builderRoles: u.builderRoles as never, institution: u.institution, companyName: u.companyName, employeeRole: u.employeeRole as never,
+    name: u.name, bio: u.bio, country: u.country, builderRoles: u.builderRoles as never, companyName: u.companyName, employeeRole: u.employeeRole as never,
     githubAccount: u.githubAccount, xAccount: u.xAccount, linkedinAccount: u.linkedinAccount, telegramAccount: u.telegramAccount, otherSocials: u.otherSocials, wallets: u.wallets, skills: u.skills,
     newsletterOptIn: u.newsletterOptIn, image: u.image,
+    universities, trackInterests: (u.campusProfile?.trackInterests ?? []) as never, campusCoordinatorInterest: u.campusProfile?.campusCoordinatorInterest ?? false,
+    adultConfirmed: !!u.campusProfile?.adultConfirmedAt,
   }
 }
 
@@ -30,7 +43,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
   const user = await requireUser()
   const nextParam = (await searchParams).next
   await reportRejectedNext(nextParam)
-  const [u, profile, { groups }] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: user.id } }), getPortalProfile(user.id), getUserGroups(user.id)])
+  const [u, profile, { groups }] = await Promise.all([prisma.user.findUniqueOrThrow({ where: { id: user.id }, include: { universityMemberships: { orderBy: { createdAt: 'asc' } }, campusProfile: true } }), getPortalProfile(user.id), getUserGroups(user.id)])
+  const orgs = await getOrgOptions(u.universityMemberships.flatMap((m) => [m.universityId, ...(m.clubId ? [m.clubId] : [])]))
+  const legacyInstitution = u.universityMemberships.length ? null : u.institution?.trim() || null
   const leadGroups = groups.filter((g) => g.lead)
   const next = nextParam ? safeNext(nextParam) : null
   // First visit (fresh account, or sent here to finish it): a short welcome step - only what's
@@ -46,7 +61,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <h1 className="mt-3 text-4xl leading-[1.05] tracking-[-0.02em] sm:text-5xl">Welcome to team1{first ? `, ${first}` : ''}<span className="text-brand">.</span></h1>
           <p className="mt-4 max-w-[52ch] text-lg text-fg-body">Tell us who you are and where you&apos;re based - so we can point you to the right events, programs and people. You can add socials and wallets anytime later.</p>
         </div>
-        <ProfileForm userId={u.id} countries={COUNTRIES} next={next} onboarding initial={{ ...formValues(u), name: placeholder ? '' : u.name }} />
+        <ProfileForm userId={u.id} countries={COUNTRIES} orgs={orgs} legacyInstitution={legacyInstitution} next={next} onboarding initial={{ ...formValues(u, orgs), name: placeholder ? '' : u.name }} />
       </div>
     )
   }
@@ -56,10 +71,13 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0">
         <ProfileForm
+          key={u.updatedAt.getTime()} // re-init from the saved data after each save (typed-in names are ids now)
           userId={u.id}
           countries={COUNTRIES}
+          orgs={orgs}
+          legacyInstitution={legacyInstitution}
           next={next}
-          initial={formValues(u)}
+          initial={formValues(u, orgs)}
         />
         </div>
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start" aria-label="Membership and links">

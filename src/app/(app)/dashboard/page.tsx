@@ -132,6 +132,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 </li>
               )
             })}
+            <li className="animate-fade-in-up sm:col-span-2 lg:col-span-4" style={{ animationDelay: '320ms' }}>
+              <Link href="/education" className="group relative flex flex-col gap-5 overflow-hidden rounded-xl border border-line bg-surface-2 p-6 transition duration-200 hover:-translate-y-0.5 hover:border-brand hover:shadow-glow sm:flex-row sm:items-center sm:p-8">
+                <span aria-hidden className="pointer-events-none absolute -top-24 right-[-5%] h-64 w-64 rounded-full bg-brand/15 blur-[90px]" />
+                <span aria-hidden className="dot-grid pointer-events-none absolute inset-0 opacity-20 [mask-image:linear-gradient(to_left,black,transparent_70%)]" />
+                <span className="relative grid size-12 shrink-0 place-items-center rounded-lg border border-line bg-surface-1 text-brand"><GraduationCap className="size-6" aria-hidden /></span>
+                <span className="relative flex-1">
+                  <span className="block text-xl text-fg-heading">Learn what it takes to build<span className="text-brand">.</span></span>
+                  <span className="mt-1.5 block text-sm text-fg-muted">team1 academies, hands-on workshops and Avalanche Academy courses - free, at your own pace.</span>
+                </span>
+                <span className="relative inline-flex min-h-11 items-center gap-2 text-sm text-fg-body group-hover:text-fg-heading">
+                  Explore education <ArrowUpRight className="arrow-nudge size-5 text-fg-faint group-hover:text-brand" aria-hidden />
+                </span>
+              </Link>
+            </li>
           </ul>
         </section>
       )}

@@ -4,7 +4,7 @@ import { flagEmoji } from '@/lib/countries'
 import { hasCompleteBasicProfile } from '@/lib/profile'
 import { profileSchema } from '@/app/(app)/profile/_lib/schemas'
 
-const base = { name: 'Ada', bio: '', country: 'AT', builderRoles: ['developer'], institution: '', companyName: '', employeeRole: '', githubAccount: '', xAccount: '', linkedinAccount: '', telegramAccount: '', otherSocials: [], wallets: [], skills: [], newsletterOptIn: false, image: null }
+const base = { name: 'Ada', bio: '', country: 'AT', builderRoles: ['developer'], companyName: '', employeeRole: '', githubAccount: '', xAccount: '', linkedinAccount: '', telegramAccount: '', otherSocials: [], wallets: [], skills: [], newsletterOptIn: false, image: null, universities: [], trackInterests: [], campusCoordinatorInterest: false, adultConfirmed: false }
 
 test('social handles use the builders-hub patterns and normalise', () => {
   const p = profileSchema.parse({ ...base, githubAccount: 'https://github.com/ada-l', xAccount: '@ada', telegramAccount: '@ada_dev', linkedinAccount: 'https://www.linkedin.com/in/ada' })

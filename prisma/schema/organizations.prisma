@@ -1,0 +1,65 @@
+// Organizations: shared by every area (campus today; partners, sponsors, ... later).
+// Server logic in src/lib/organizations.ts, rules (ORG_TYPES, name matching) in src/lib/campus.ts,
+// admin at /admin/campus/organizations.
+
+/// A university or blockchain club (more types later - ORG_TYPES, only add). Exists only once someone
+/// uses it: universities picked from UniversityCatalog (rorId set, verified) or typed in by a user
+/// (unverified), clubs typed in.
+model Organization {
+  id                String         @id @default(cuid())
+  /// university | blockchain_club (ORG_TYPES - persisted, only add)
+  type              String
+  name              String
+  /// normalizeOrgName(name) - finds duplicates
+  normalizedName    String
+  /// other names it goes by ("Universität Wien" for "University of Vienna"); admin-maintained,
+  /// searched by the university picker.
+  aliases           String[]       @default([])
+  /// normalizeOrgName of each alias - duplicate detection like normalizedName
+  normalizedAliases String[]       @default([])
+  /// ISO-2; clubs inherit their university's
+  country           String?
+  /// club -> its university
+  parentId          String?
+  parent            Organization?  @relation("OrgParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children          Organization[] @relation("OrgParent")
+  /// universities: ROR id (UniversityCatalog.rorId, no https://ror.org/ prefix) - set when picked from the catalog;
+  /// the key the member-portal CRM can join on later
+  rorId             String?        @unique
+  /// from the catalog or checked by an admin
+  verified          Boolean        @default(false)
+  /// left out of pickers (spam, junk) - existing members keep it
+  hidden            Boolean        @default(false)
+  createdById       String?
+  createdBy         User?          @relation("OrganizationsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  members     UniversityMembership[] @relation("MembershipUniversity")
+  clubMembers UniversityMembership[] @relation("MembershipClub")
+
+  @@index([type, normalizedName])
+  @@index([normalizedAliases], type: Gin)
+  @@index([createdById, createdAt])
+  @@map("organizations")
+}
+
+/// Reference list of universities: the OpenAlex snapshot (institutions of type education, CC0),
+/// replaced as a whole by a manual import (about yearly, not in the repo). Never edited, no relations - an
+/// Organization is created from a row (by rorId) only when someone picks it.
+model UniversityCatalog {
+  /// ROR id without the https://ror.org/ prefix
+  rorId      String   @id
+  name       String
+  /// ISO-2
+  country    String?
+  /// alternative names + acronyms (cleanAliases)
+  aliases    String[]
+  /// normalizeOrgName of the name and each alias, " | "-joined - what the picker search matches
+  searchText String
+  /// OpenAlex works_count - ranks real universities above tiny institutes
+  worksCount Int
+  updatedAt  DateTime @updatedAt
+
+  @@map("university_catalog")
+}

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { Activity, KeyRound, LayoutDashboard, ScrollText, ShieldCheck, Users } from 'lucide-react'
 import { referralsAdminNav } from '@/app/(app)/referrals/_lib/nav'
+import { campusAdminNav } from '@/app/(app)/campus/_lib/nav'
 import { eventsAdminNav } from '@/app/(site)/events/_lib/nav'
 import { can } from '@/lib/permissions'
 import type { CurrentUser } from '@/lib/session'
@@ -16,6 +17,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, show: () => true },
   ...eventsAdminNav,
   ...referralsAdminNav,
+  ...campusAdminNav,
   { href: '/admin/users', label: 'Users', icon: Users, show: (u) => can(u, 'users.view') },
   { href: '/admin/access', label: 'Access', icon: ShieldCheck, show: superAdmin },
   { href: '/admin/audit', label: 'Audit log', icon: ScrollText, show: superAdmin },

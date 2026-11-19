@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 
 const JUMPS = [
   ['#academies', 'team1 academies', ACADEMIES.length],
-  ['#workshops', 'Workshops', WORKSHOPS.length],
   ['#avalanche-academy', 'Avalanche Academy', AVAX_COURSES.reduce((n, g) => n + g.courses.length, 0)],
+  ['#workshops', 'Workshops', WORKSHOPS.length],
 ] as const
 
 export default function EducationPage() {
@@ -87,8 +87,8 @@ export default function EducationPage() {
         </ul>
       </section>
 
-      <WorkshopsSection />
       <AvaxAcademySection />
+      <WorkshopsSection />
     </>
   )
 }

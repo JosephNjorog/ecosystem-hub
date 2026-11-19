@@ -3,8 +3,10 @@
 // inconsistencies fixed: one bio limit (250), ISO country codes, role flags as
 // one list, handles normalised to the bare username. Pure.
 
+import type { TrackInterest, UniversityEntry } from '@/lib/campus'
+
 export const BUILDER_ROLES = [
-  { id: 'university', name: 'University', description: 'Student or affiliate' },
+  { id: 'university', name: 'University', description: 'Student, faculty or staff' },
   { id: 'founder', name: 'Founder', description: 'Building a startup' },
   { id: 'developer', name: 'Developer', description: 'Ship code on-chain' },
   { id: 'employee', name: 'Employee', description: 'Working at a web3 company' },
@@ -31,7 +33,6 @@ export type ProfileFormValues = {
   bio: string | null
   country: string | null
   builderRoles: BuilderRole[]
-  institution: string | null
   companyName: string | null
   employeeRole: string | null
   githubAccount: string | null
@@ -43,4 +44,8 @@ export type ProfileFormValues = {
   skills: string[]
   newsletterOptIn: boolean
   image: string | null
+  universities: UniversityEntry[]
+  trackInterests: TrackInterest[]
+  campusCoordinatorInterest: boolean
+  adultConfirmed: boolean
 }
