@@ -154,3 +154,18 @@ export function formatWait(ms: number) {
   const h = Math.floor(min / 60)
   return h ? `${h} h ${min % 60} min` : `${min} min`
 }
+
+/** LinkedIn "Add to profile" link: pre-fills Licenses & certifications, with team1's company page (logo) and "Show credential" → `certUrl`. */
+export const TEAM1_LINKEDIN_ORG_ID = '111983994'
+export function linkedInAddUrl(cert: { id: string; courseTitle: string; issuedAt: Date }, certUrl: string) {
+  const q = new URLSearchParams({
+    startTask: 'CERTIFICATION_NAME',
+    name: cert.courseTitle,
+    organizationId: TEAM1_LINKEDIN_ORG_ID,
+    issueYear: String(cert.issuedAt.getUTCFullYear()),
+    issueMonth: String(cert.issuedAt.getUTCMonth() + 1),
+    certUrl,
+    certId: cert.id,
+  })
+  return `https://www.linkedin.com/profile/add?${q}`
+}

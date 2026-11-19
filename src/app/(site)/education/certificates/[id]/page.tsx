@@ -3,14 +3,16 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { BadgeCheck, Download } from 'lucide-react'
+import { SocialIcon } from '@/components/social-icon'
 import { Button } from '@/components/ui/button'
+import { OPEN_GRAPH } from '@/lib/metadata'
 import { getCurrentUser } from '@/lib/session'
 import { DeleteCertificate } from '../../_components/delete-certificate'
 import { UpdateCertificateName } from '../../_components/update-certificate-name'
 import { certificateDetails, certificateUrl, formatIssued } from '../../_lib/certificate'
 import { getAcademy } from '../../_lib/content'
 import { getCertificate } from '../../_lib/queries'
-import { courseHref } from '../../_lib/rules'
+import { courseHref, linkedInAddUrl } from '../../_lib/rules'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -23,7 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const cert = await load(params)
   if (!cert) return {}
   // Carries a person's name: shareable, but kept out of search engines.
-  return { title: `${cert.courseTitle} - Course certificate`, description: `${cert.name} completed ${cert.courseTitle} on the team1 Ecosystem Hub.`, robots: { index: false } }
+  const title = `${cert.courseTitle} - Course certificate`
+  const description = `${cert.name} completed ${cert.courseTitle} on the team1 Ecosystem Hub.`
+  // og:image is the file next to this page (opengraph-image.tsx) - file-based metadata wins over this object.
+  return { title, description, robots: { index: false }, openGraph: { ...OPEN_GRAPH, title, description, url: `/education/certificates/${cert.id}` } }
 }
 
 export default async function CertificatePage({ params }: Props) {
@@ -85,7 +90,13 @@ export default async function CertificatePage({ params }: Props) {
           </p>
           {(own || user?.isSuperAdmin) && (
             <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-              {own && <Button asChild size="lg"><a href={`/education/certificates/${cert.id}/pdf`}><Download aria-hidden /> Download PDF</a></Button>}
+              {own && (
+                // One grid column = the wider button's width, so both are the same size.
+                <div className="grid gap-2">
+                  <Button asChild size="lg"><a href={`/education/certificates/${cert.id}/pdf`}><Download aria-hidden /> Download PDF</a></Button>
+                  <Button asChild size="lg" variant="outline"><a href={linkedInAddUrl(cert, certificateUrl(cert.id))} target="_blank" rel="noopener noreferrer"><SocialIcon platform="linkedin" /> Add to LinkedIn</a></Button>
+                </div>
+              )}
               {own && profileName && profileName !== cert.name && <UpdateCertificateName id={cert.id} name={profileName} />}
               <DeleteCertificate id={cert.id} own={own} />
             </div>
