@@ -95,8 +95,10 @@ export default async function CoursePage({ params }: Props) {
                 </div>
               )}
               <Button asChild size="lg" className="mt-6 w-full">
-                {status?.complete ? (
-                  <a href="#certificate">{certId ? 'View your certificate' : 'Get your certificate'} <Award aria-hidden /></a>
+                {certId ? (
+                  <Link href={`/education/certificates/${certId}`}>View your certificate <Award aria-hidden /></Link>
+                ) : status?.complete ? (
+                  <a href="#certificate">Get your certificate <Award aria-hidden /></a>
                 ) : (
                   <Link href={status?.resume ?? lessons[0].href}>{status?.started ? 'Continue where you left off' : 'Start the course'} <ArrowRight aria-hidden /></Link>
                 )}

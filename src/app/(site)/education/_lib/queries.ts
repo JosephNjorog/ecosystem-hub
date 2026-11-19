@@ -15,6 +15,11 @@ export const getProgress = cache(async (userId: string, academy: string): Promis
 /** Profile fields `hasCompleteBasicProfile` checks - claiming a certificate needs a complete profile. */
 export const getBasicProfile = cache((userId: string) => prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, country: true, builderRoles: true } }))
 
+/** All of a user's certificates, newest first (dashboard). */
+export const listMyCertificates = cache((userId: string) =>
+  prisma.certificate.findMany({ where: { userId }, orderBy: { issuedAt: 'desc' }, select: { id: true, courseTitle: true, issuedAt: true } }),
+)
+
 /** Certificate id per course slug. */
 export const getCertificateIds = cache(async (userId: string, academy: string): Promise<Map<string, string>> => {
   const rows = await prisma.certificate.findMany({ where: { userId, academy }, select: { id: true, course: true } })
