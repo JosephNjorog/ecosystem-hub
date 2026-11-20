@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: event.name,
     description: (!blocksPublish(event) && plainText(event.descriptionMd ?? '')) || `${event.name} - a team1 event for builders in the Avalanche ecosystem.`,
     ...canonical(`/events/${event.slug}`, event.coverUrl ? { images: [event.coverUrl] } : undefined),
-    ...(event.status === 'unlisted' && { robots: { index: false } }),
+    ...(event.visibility === 'link' && { robots: { index: false } }),
   }
 }
 
