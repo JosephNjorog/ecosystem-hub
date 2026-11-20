@@ -35,7 +35,7 @@ export function EventActions({ id, status, canPublish, canDelete, isPortal, hack
         <RefreshCw className={pending ? 'animate-spin' : undefined} aria-hidden /> Refresh
       </Button>
       {status !== 'archived' && (
-        <Button variant="ghost" disabled={pending} title="Hidden like a draft and no longer refreshed - keeps the event for the record" onClick={() => hide('archived', 'Event archived')}>Archive</Button>
+        <Button variant="ghost" disabled={pending} title={hackathonLive ? 'Not listed and no longer refreshed - the published hackathon keeps the page reachable by link' : 'Hidden like a draft and no longer refreshed - keeps the event for the record'} onClick={() => hide('archived', 'Event archived')}>Archive</Button>
       )}
       {canDelete && (
         <ConfirmButton
