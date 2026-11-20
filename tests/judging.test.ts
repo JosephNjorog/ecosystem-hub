@@ -128,3 +128,31 @@ test('"same track only" off lets track-limited judges review any entry', async (
   assert.equal(judgeEligibility(judge, entry(true), []).ok, false)
   assert.equal(judgeEligibility(judge, entry(false), []).ok, true)
 })
+
+test('judgesWithoutTrack: deleting a track removes it from the judges that listed it', async () => {
+  const { judgesWithoutTrack } = await import('@/app/(site)/events/_lib/hackathons/judging')
+  const judges = [
+    { id: 'only-b', userId: null, trackIds: ['b'] },
+    { id: 'a-and-b', userId: null, trackIds: ['a', 'b'] },
+    { id: 'only-a', userId: null, trackIds: ['a'] },
+    { id: 'all', userId: null, trackIds: [] },
+  ]
+  // Before the fix the deleted id stayed on 'only-b' and 'a-and-b' (unshown in the picker, rejected by saveJudge).
+  assert.deepEqual(judgesWithoutTrack(judges, 'b'), [
+    { id: 'only-b', userId: null, trackIds: [] },
+    { id: 'a-and-b', userId: null, trackIds: ['a'] },
+  ])
+  assert.deepEqual(judgesWithoutTrack(judges, 'unknown'), [])
+})
+
+test('ineligibleAssignments: open assignments a judge may no longer review after their tracks changed', async () => {
+  const { ineligibleAssignments } = await import('@/app/(site)/events/_lib/hackathons/judging')
+  const open = [
+    { id: 'x-in-a', entryId: 'e1', entryTrackIds: ['a'], sameTrackOnly: true },
+    { id: 'x-in-b', entryId: 'e2', entryTrackIds: ['b'], sameTrackOnly: true },
+    { id: 'x-in-b-any', entryId: 'e3', entryTrackIds: ['b'], sameTrackOnly: false },
+    { id: 'x-no-track', entryId: 'e4', entryTrackIds: [], sameTrackOnly: true },
+  ]
+  assert.deepEqual(ineligibleAssignments({ id: 'j', userId: null, trackIds: ['a'] }, open), ['x-in-b'])
+  assert.deepEqual(ineligibleAssignments({ id: 'j', userId: null, trackIds: [] }, open), [])
+})

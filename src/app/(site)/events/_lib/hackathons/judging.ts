@@ -78,6 +78,18 @@ export function judgeEligibility(j: AssignJudge, e: AssignEntry, declared: Pair[
   return { ok: true }
 }
 
+/** Deleting a track: the judges that listed it, with their remaining tracks (others are unchanged). */
+export function judgesWithoutTrack<J extends { id: string; trackIds: string[] }>(judges: J[], trackId: string): (J & { trackIds: string[] })[] {
+  return judges.filter((j) => j.trackIds.includes(trackId)).map((j) => ({ ...j, trackIds: j.trackIds.filter((t) => t !== trackId) }))
+}
+
+type OpenAssignment = { id: string; entryId: string; entryTrackIds: string[]; sameTrackOnly: boolean }
+
+/** Ids of a judge's open assignments (no submitted review) they're no longer eligible for after their tracks changed. */
+export function ineligibleAssignments(judge: AssignJudge, open: OpenAssignment[]): string[] {
+  return open.filter((a) => !judgeEligibility(judge, { id: a.entryId, trackIds: entryTracks(a.entryTrackIds, a.sameTrackOnly), teamUserIds: [] }, []).ok).map((a) => a.id)
+}
+
 function eligible(j: AssignJudge, e: AssignEntry) {
   return judgeEligibility(j, e, []).ok
 }

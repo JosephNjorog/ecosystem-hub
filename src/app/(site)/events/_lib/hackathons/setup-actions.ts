@@ -3,6 +3,7 @@
 import { logger } from '@/lib/logger'
 import crypto from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { action, ActionError } from '@/lib/action'
 import { recordAudit } from '@/lib/audit'
@@ -15,7 +16,7 @@ import { isOwnUpload } from '@/lib/storage'
 import { isTimeZone } from '@/lib/timezones'
 import { isReachable } from '../status'
 import { verifiedUserIdByEmail } from './bind'
-import { entryTracks, judgeEligibility } from './judging'
+import { ineligibleAssignments, judgesWithoutTrack } from './judging'
 import { assertManage } from './manage'
 import { FIELD_TYPES, publishChecklist, reopensJudging, validateStages } from './rules'
 
@@ -133,13 +134,34 @@ export const saveTrack = action(
   },
 )
 
+/** A judge's open assignments (no submitted review, judging not closed), with what eligibility needs. */
+async function openAssignments(tx: Prisma.TransactionClient, judgeId: string) {
+  const rows = await tx.judgeAssignment.findMany({
+    where: { judgeId, entry: { stage: { judgingClosedAt: null } }, OR: [{ review: null }, { review: { submittedAt: null } }] },
+    select: { id: true, entryId: true, entry: { select: { stage: { select: { sameTrackOnly: true } }, submission: { select: { trackIds: true } } } } },
+  })
+  return rows.map((a) => ({ id: a.id, entryId: a.entryId, entryTrackIds: a.entry.submission.trackIds, sameTrackOnly: a.entry.stage.sameTrackOnly }))
+}
+
 export const deleteTrack = action({ schema: z.object({ hackathonId: id, trackId: id }), permission: 'user' }, async ({ hackathonId, trackId }, user) => {
   const h = await assertManage(hackathonId, user)
   const used = await prisma.submission.count({ where: { hackathonId, trackIds: { has: trackId } } })
   if (used) throw new ActionError(`${used} submission(s) entered this track - it can't be deleted`)
-  const r = await prisma.hackathonTrack.deleteMany({ where: { id: trackId, hackathonId } })
-  if (!r.count) throw new ActionError('Track not found')
-  await recordAudit({ actorId: user.id, action: 'hackathon.track.delete', entityType: 'Hackathon', entityId: hackathonId, before: { trackId } })
+  // Judges limited to this track lose it, else they'd keep an id no picker can show (and saveJudge rejects).
+  const judges = await prisma.$transaction(async (tx) => {
+    const r = await tx.hackathonTrack.deleteMany({ where: { id: trackId, hackathonId } })
+    if (!r.count) throw new ActionError('Track not found')
+    const changed = judgesWithoutTrack(await tx.hackathonJudge.findMany({ where: { hackathonId, trackIds: { has: trackId } }, select: { id: true, userId: true, trackIds: true } }), trackId)
+    const out: { judgeId: string; trackIds: string[]; unassigned: number }[] = []
+    for (const j of changed) {
+      const stale = ineligibleAssignments(j, await openAssignments(tx, j.id))
+      await tx.hackathonJudge.update({ where: { id: j.id }, data: { trackIds: j.trackIds } })
+      if (stale.length) await tx.judgeAssignment.deleteMany({ where: { id: { in: stale } } })
+      out.push({ judgeId: j.id, trackIds: j.trackIds, unassigned: stale.length })
+    }
+    return out
+  })
+  await recordAudit({ actorId: user.id, action: 'hackathon.track.delete', entityType: 'Hackathon', entityId: hackathonId, before: { trackId }, after: { judges } })
   revalidate(h)
   return null
 })
@@ -478,11 +500,7 @@ export const saveJudge = action(
       const judge = await prisma.hackathonJudge.findFirst({ where: { id: judgeId, hackathonId } })
       if (!judge) throw new ActionError('Judge not found')
       // Narrowed tracks: drop open assignments the judge is no longer eligible for (submitted reviews stay).
-      const open = await prisma.judgeAssignment.findMany({
-        where: { judgeId, entry: { stage: { judgingClosedAt: null } }, OR: [{ review: null }, { review: { submittedAt: null } }] },
-        select: { id: true, entryId: true, entry: { select: { stage: { select: { sameTrackOnly: true } }, submission: { select: { trackIds: true } } } } },
-      })
-      const stale = open.filter((a) => !judgeEligibility({ ...judge, trackIds }, { id: a.entryId, trackIds: entryTracks(a.entry.submission.trackIds, a.entry.stage.sameTrackOnly), teamUserIds: [] }, []).ok).map((a) => a.id)
+      const stale = ineligibleAssignments({ ...judge, trackIds }, await openAssignments(prisma, judgeId))
       await prisma.$transaction([
         prisma.hackathonJudge.update({ where: { id: judgeId }, data: { trackIds } }),
         prisma.judgeAssignment.deleteMany({ where: { id: { in: stale } } }),
