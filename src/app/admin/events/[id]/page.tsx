@@ -4,7 +4,7 @@ import { BackLink } from '@/components/back-link'
 import { CopyButton } from '@/components/copy-button'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, ExternalLink, MapPin } from 'lucide-react'
-import { EventStatusBadge, isReachable } from '@/app/(site)/events/_lib/status'
+import { EventStatusBadge, eventVisibility } from '@/app/(site)/events/_lib/status'
 import { EventCover } from '@/components/event-cover'
 import { Markdown } from '@/components/markdown'
 import { formatEventRange, formatUtc } from '@/lib/dates'
@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: 'Event' }
 export default async function AdminEventPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser()
   if (!canManageEvents(user)) notFound()
-  const event = await prisma.event.findUnique({ where: { id: (await params).id }, include: { hackathon: { select: { id: true } } } })
+  const event = await prisma.event.findUnique({ where: { id: (await params).id }, include: { hackathon: { select: { id: true, status: true } } } })
   if (!event) notFound()
   return (
     <>
@@ -45,13 +45,13 @@ export default async function AdminEventPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex flex-wrap gap-2">
             {can(user, 'hackathons.manage') && <HackathonButton eventId={event.id} hackathonId={event.hackathon?.id ?? null} eventStart={event.startAt} eventEnd={event.endAt} eventTimezone={event.timezone} />}
-            <EventActions id={event.id} status={event.status} canPublish={!blocksPublish(event)} canDelete={user.isSuperAdmin && !event.hackathon} isPortal={event.source === 'portal'} />
+            <EventActions id={event.id} status={event.status} canPublish={!blocksPublish(event)} canDelete={user.isSuperAdmin && !event.hackathon} isPortal={event.source === 'portal'} hackathonLive={event.hackathon?.status === 'published'} />
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <a href={event.lumaUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">
               Open on Luma <ExternalLink className="size-3.5" aria-hidden />
             </a>
-            {isReachable(event.status) && (
+            {eventVisibility(event.status, event.hackathon?.status) !== 'hidden' && (
               <Link href={`/events/${event.slug}`} className="inline-flex items-center gap-1.5 text-fg-muted hover:text-fg-heading">
                 View on the Ecosystem Hub <ExternalLink className="size-3.5" aria-hidden />
               </Link>
