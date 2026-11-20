@@ -1,7 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { prisma } from '@/lib/db'
-import { isReachable } from './status'
+import { eventVisibility } from './status'
 
 /** "Upcoming" = not ended yet (multi-day events stay until they end). */
 export function upcomingEventWhere(now = new Date()) {
@@ -20,7 +20,11 @@ export async function listPublicEvents(when: 'upcoming' | 'past', take: number, 
   })
 }
 
+/** The event behind /events/[slug] (and its /join, /submit), or null when hidden - see `eventVisibility`. */
 export const getPublicEvent = cache(async (slug: string) => {
-  const event = await prisma.event.findUnique({ where: { slug } })
-  return event && isReachable(event.status) ? event : null
+  const found = await prisma.event.findUnique({ where: { slug }, include: { hackathon: { select: { status: true } } } })
+  if (!found) return null
+  const { hackathon, ...event } = found
+  const visibility = eventVisibility(event.status, hackathon?.status)
+  return visibility === 'hidden' ? null : { ...event, visibility }
 })
